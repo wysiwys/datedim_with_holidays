@@ -34,7 +34,7 @@ from datetime import datetime
 import calendar
 import holidays
 import polars
-from polars.datatypes import UInt8, UInt16, UInt32, Int64
+from polars.datatypes import UInt8, UInt16, UInt32, Int64, Struct
 from result import Ok, Err, Result
 
 class Holidays:
@@ -42,34 +42,50 @@ class Holidays:
     Represents the list of lists of user-provided holidays
     """
 
-    holidays = []
-    def country_holidays(self, countries: set[str]) -> Result[None,str]:
+    def __init__(self):
+        """
+        Initialize the struct with empty holidays
+        """
+        self.holidays = {}
+
+    def country_holidays(self, countries: str | list[str]) -> Result[None,str]:
         """
         Generate the country holidays from list
         """
 
+        if isinstance(countries,str):
+            countries = [countries]
+
         try:
-            for country in countries:
-                country_holidays =  holidays.country_holidays(country)
-                self.holidays.append(country_holidays)
+            for code in countries:
+                self.holidays[code] =  holidays.country_holidays(code)
         except NotImplementedError as e:
             return Err(e)
 
         return Ok(None)
 
-    def financial_holidays(self, ids: set[str]) -> Result[None,str]:
+    def financial_holidays(self, ids: str | list[str]) -> Result[None,str]:
         """
         Generate the financial holidays from list
         """
 
+        if isinstance(ids,str):
+            ids = [ids]
+
+
         try:
-            for i in ids:
-                financial_holidays = holidays.financial_holidays(i)
-                self.holidays.append(financial_holidays)
+            for code in ids:
+                self.holidays[code] = holidays.financial_holidays(code)
         except NotImplementedError as e:
             return Err(e)
 
         return Ok(None)
+
+    def is_empty(self) -> bool:
+        """
+        Returns True if any holidays lists are provided, else False
+        """
+        return len(self.holidays) == 0
 
     def is_holiday(self, date: datetime.date) -> bool:
         """
@@ -77,12 +93,34 @@ class Holidays:
         in at least one of the holiday lists.
         """
 
-        for entry in self.holidays:
+        for entry in self.holidays.values():
             if entry.get(date) is not None:
                 return True
 
         return False
 
+
+    def get_holiday_names(self, date: datetime.date) -> dict[str,str]:
+        """
+        Given a provided date and holidays set code, get the names of all holidays
+        """
+        holidays_dict = {}
+
+        # TODO: this could likely be made more efficient
+
+        for holidays_id, holidays_set in self.holidays.items():
+            if holidays_set is not None:
+                if (holiday := holidays_set.get(date)) is not None:
+
+                    # Configure holiday name entry
+                    # Add the naming convention that will be used for the final column
+                    holidays_dict["is_holiday_"+holidays_id] = True
+                    holidays_dict["holiday_name_"+holidays_id] = holiday
+                else:
+                    holidays_dict["is_holiday_"+holidays_id] = False
+                    holidays_dict["holiday_name_"+holidays_id] = None
+
+        return holidays_dict
 
 
 
@@ -96,6 +134,7 @@ class Arguments:
     start_date = None
     end_date = None
     holidays = None
+    use_holiday_names = False
 
     def __init__(self):
         """
@@ -127,6 +166,15 @@ class Arguments:
         self.parser.add_argument(
             '-o', '--out_format', default='parquet', 
             help='Format of output data: can be one of CSV, parquet (default is parquet)')
+        self.parser.add_argument(
+            '-n', '--holiday_names_columns', default=False,
+            const=True, nargs='?',
+            help='Whether to create a separate column for each country/financial holidays set, with names.\
+                    \nFor each code, the following columns will be created:\
+                    \n    \u2b29 is_holiday_[CODE] (boolean)\
+                    \n    \u2b29 holiday_name_[CODE] (text)\
+                    \nDefault is False.'
+            )
 
     def parse(self):
         """
@@ -153,17 +201,25 @@ class Arguments:
 
 
         # Handle the holidays
-        holidays = Holidays()
-        match holidays.country_holidays(args.country_holidays):
+        user_holidays = Holidays()
+        match user_holidays.country_holidays(args.country_holidays):
             case Err(e):
                 return Err(f'Error processing country holidays: {e}')
 
-        match holidays.financial_holidays(args.financial_holidays):
+        match user_holidays.financial_holidays(args.financial_holidays):
             case Err(e):
                 return Err(f'Error processing financial holidays: {e}')
 
 
-        self.holidays = holidays
+        self.holidays = user_holidays
+
+
+        # Handle the holiday_names_columns argument
+        # Check the case where names columns were requested but no holiday set ids provided
+        if args.holiday_names_columns and self.holidays.is_empty():
+            print("Warning: Ignoring holiday_names_columns argument since no holidays were provided")
+        else:
+            self.use_holiday_names = args.holiday_names_columns
 
         # Handle the output format
         # Allowed formats: parquet, csv
@@ -203,6 +259,24 @@ class DataFrame:
     def __init__(self, df: polars.DataFrame):
         self.df = df
 
+    def generate_holiday_columns(self, user_holidays: Holidays):
+        """
+        Generate the optional holiday name columns from the provided holidays
+        """
+
+        temp_column_name = "temp"
+
+        # This is the expression that generates the column values
+        # for each row of the final dataframe. The representation
+        # for each row is the dictionary returned by
+        # holidays.get_holiday_names(date).
+        dict_column = polars.col('date_raw').map_elements(
+                    user_holidays.get_holiday_names,return_dtype=Struct
+                    ).alias(temp_column_name)
+
+        self.df = self.df.with_columns(dict_column).unnest(temp_column_name)
+
+
     def output(self, out_format):
         """
         Given an output format (one of 'csv' or 'parquet'),
@@ -238,7 +312,7 @@ class DateDimensionGenerator:
                 eager=True
                 ).alias("date")
 
-        # TODO: own structure
+        # Create the dataframe without the holiday names columns
         df = polars.DataFrame(
                 {
                     "datekey": format_date(date_range,"%Y%m%d"),
@@ -253,7 +327,6 @@ class DateDimensionGenerator:
                     "monthyear": format_date(date_range,"%b%Y"),
                     "daynuminweek": date_range.dt.weekday().cast(UInt8),
                     "daynuminmonth": date_range.dt.day().cast(UInt8),
-                    # TODO: should this be iso?
                     "daynuminyear": date_range.map_elements(
                         lambda x: x.timetuple().tm_yday,
                         return_dtype=Int64).cast(UInt16),
@@ -267,23 +340,28 @@ class DateDimensionGenerator:
 
                     # Boolean values below
 
-                    "last_day_in_week": date_range.dt.weekday() == 7,
-                    "last_day_in_month": date_range.map_elements(
+                    "is_last_day_in_week": date_range.dt.weekday() == 7,
+                    "is_last_day_in_month": date_range.map_elements(
                         lambda x: x.day == last_day_of_month(x),
                         return_dtype=bool),
                     #   gen
-                    "holiday": date_range.map_elements(
+                    "is_holiday": date_range.map_elements(
                         self.args.holidays.is_holiday,
                         return_dtype=bool),
 
                     # 6 = Saturday, 7 = Sunday
-                    "weekday": date_range.dt.weekday() < 6
+                    "is_weekday": date_range.dt.weekday() < 6
                     }
                 )
-        return DataFrame(df)
 
+        df = DataFrame(df)
 
-def main(args: Arguments):
+        if self.args.use_holiday_names:
+            df.generate_holiday_columns(self.args.holidays)
+
+        return df
+
+def generate(args: Arguments):
     """
     Summary of functionality:
     1. Set up the generator from the validated arguments
@@ -297,10 +375,16 @@ def main(args: Arguments):
     df.output(args.out_format)
 
 
-
-if __name__ == "__main__":
+def main():
+    """
+    Handle the user-provided arguments,
+    and pass them to the generator.
+    """
     match Arguments().parse():
         case Ok(args):
-            main(args)
+            generate(args)
         case Err(e):
             print(e)
+
+if __name__ == "__main__":
+    main()

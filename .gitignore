@@ -1,0 +1,9 @@
+*.swp
+*.csv
+*.parquet
+env/*
+python-holidays
+tests/__pycache__
+src/generate/__pycache__
+src/*.egg-info
+build
