@@ -1,5 +1,5 @@
 # datedim_with_holidays
-Generate the date dimension for a data warehouse, with country-specific holidays added using python `holidays`.
+Generate the date dimension for a data warehouse, with a country-specific holidays flag added using python `holidays`.
 
 ## How to use
 
