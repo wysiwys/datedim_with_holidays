@@ -1,0 +1,3 @@
+holidays==0.49
+polars==0.20.31
+result==0.16.1
