@@ -3,7 +3,7 @@ import pytest
 from datetime import date
 
 from result import is_err, is_ok
-from generate.generate import Holidays
+from datedim_generate.generate import Holidays
 
 
 def test_add_holidays():

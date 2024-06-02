@@ -6,7 +6,14 @@ Generate the date dimension for a data warehouse, with country-specific holidays
 Before running the script, set up the python virtual environment:
 ```
 python3 -m venv env && source env/bin/activate
+```
+Then install using your package manager of choice:
+```
 python3 -m pip install .
+```
+OR
+```
+poetry install
 ```
 To generate the date dimension table, e.g. between Jan 1 and Dec 31 2022, in csv format, with a single boolean flag for US and BR holidays:
 ```
