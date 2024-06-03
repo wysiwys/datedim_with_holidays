@@ -31,10 +31,9 @@ SOFTWARE.
 import argparse
 from datetime import datetime, date
 
-import calendar
 import holidays
 import polars
-from polars.datatypes import UInt8, UInt16, UInt32, Int64, Struct
+from polars.datatypes import UInt8, UInt32,  Struct
 from result import Ok, Err, Result
 
 class Holidays:
@@ -272,16 +271,6 @@ class Arguments:
 
 
         return Ok(self)
-
-# Helper functions for generating date metadata
-
-def last_day_of_month(d):
-    """
-    Provides the number of the last day of the month for a given date
-    """
-    return calendar.monthrange(d.year, d.month)[1]
-
-
 
 
 class DataFrame:
