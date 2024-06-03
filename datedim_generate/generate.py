@@ -29,7 +29,7 @@ SOFTWARE.
 """
 #pylint: disable=W0511,R0903,R0911,C0301
 import argparse
-from datetime import datetime
+from datetime import datetime, date
 
 import calendar
 import holidays
@@ -48,13 +48,15 @@ class Holidays:
         """
         self.holidays = {}
 
-    def country_holidays(self, countries: str | list[str]) -> Result[None,str]:
+    def country_holidays(self, countries: str | list[str] | None) -> Result[None,str]:
         """
         Generate the country holidays from list
         """
 
         if isinstance(countries,str):
             countries = [countries]
+        elif countries is None:
+            return Ok(None)
 
         try:
             for code in countries:
@@ -64,13 +66,15 @@ class Holidays:
 
         return Ok(None)
 
-    def financial_holidays(self, ids: str | list[str]) -> Result[None,str]:
+    def financial_holidays(self, ids: str | list[str] | None) -> Result[None,str]:
         """
         Generate the financial holidays from list
         """
 
         if isinstance(ids,str):
             ids = [ids]
+        elif ids is None:
+            return Ok(None)
 
 
         try:
@@ -87,20 +91,20 @@ class Holidays:
         """
         return len(self.holidays) == 0
 
-    def is_holiday(self, date: datetime.date) -> bool:
+    def is_holiday(self, provided_date: datetime.date) -> bool:
         """
         Given a provided date, check if it is included
         in at least one of the holiday lists.
         """
 
         for entry in self.holidays.values():
-            if entry.get(date) is not None:
+            if entry.get(provided_date) is not None:
                 return True
 
         return False
 
 
-    def get_holiday_names(self, date: datetime.date) -> dict[str,str]:
+    def get_holiday_names(self, provided_date: datetime.date) -> dict[str,str]:
         """
         Given a provided date and holidays set code, get the names of all holidays
         """
@@ -110,7 +114,7 @@ class Holidays:
 
         for holidays_id, holidays_set in self.holidays.items():
             if holidays_set is not None:
-                if (holiday := holidays_set.get(date)) is not None:
+                if (holiday := holidays_set.get(provided_date)) is not None:
 
                     # Configure holiday name entry
                     # Add the naming convention that will be used for the final column
@@ -180,19 +184,49 @@ class Arguments:
         """
         Parse the arguments provided by the user.
         """
-
         args = self.parser.parse_args()
+
+        return self.__process_arguments(
+                start_date=args.start_date,
+                end_date=args.end_date,
+                country_holidays=args.country_holidays,
+                financial_holidays=args.financial_holidays,
+                holiday_names_columns=args.holiday_names_columns,
+                out_format=args.out_format)
+
+    def __process_arguments(self,
+        start_date: date|datetime|str=None,
+        end_date: date|datetime|str=None,
+        country_holidays: list=None,
+        financial_holidays: list=None,
+        holiday_names_columns: bool =False,
+        out_format=None):
 
         # Handle the start and end dates
         # These must be provided as YYYY-MM-DD dates, and both dates both be provided.
 
-        if args.start_date is None or args.end_date is None:
+        if start_date is None or end_date is None:
             return Err('Invalid configuration: must provide start and end date')
+
+        if not any (isinstance(start_date, t) for t in [str, date, datetime]) \
+                or not any(isinstance(end_date,t) for t in [str, date, datetime]):
+            return Err('Invalid configuration: dates must be provided as str, date, or datetime')
+
+        # convert any datetimes to date
+        if isinstance(start_date, datetime):
+            start_date = start_date.date()
+
+        if isinstance(end_date, datetime):
+            end_date = end_date.date()
         try:
-            start_date = datetime.strptime(args.start_date, '%Y-%m-%d').date()
-            end_date = datetime.strptime(args.end_date, '%Y-%m-%d').date()
+            if isinstance(start_date, str):
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            if isinstance(end_date, str):
+                end_date= datetime.strptime(end_date, '%Y-%m-%d').date()
         except ValueError as e:
             return Err(e)
+
+
 
         if start_date > end_date:
             return Err('Invalid configuration: Start date must be on or before end date')
@@ -202,11 +236,11 @@ class Arguments:
 
         # Handle the holidays
         user_holidays = Holidays()
-        match user_holidays.country_holidays(args.country_holidays):
+        match user_holidays.country_holidays(country_holidays):
             case Err(e):
                 return Err(f'Error processing country holidays: {e}')
 
-        match user_holidays.financial_holidays(args.financial_holidays):
+        match user_holidays.financial_holidays(financial_holidays):
             case Err(e):
                 return Err(f'Error processing financial holidays: {e}')
 
@@ -216,14 +250,19 @@ class Arguments:
 
         # Handle the holiday_names_columns argument
         # Check the case where names columns were requested but no holiday set ids provided
-        if args.holiday_names_columns and self.holidays.is_empty():
+        if not isinstance(holiday_names_columns, bool):
+            return Err('Unsupported data type for holiday_names_columns: must be boolean')
+        if holiday_names_columns and self.holidays.is_empty():
             print("Warning: Ignoring holiday_names_columns argument since no holidays were provided")
         else:
-            self.use_holiday_names = args.holiday_names_columns
+            self.use_holiday_names = holiday_names_columns
 
         # Handle the output format
         # Allowed formats: parquet, csv
-        match args.out_format.lower():
+        if out_format is None:
+            out_format = 'parquet'
+
+        match out_format.lower():
             case 'csv':
                 self.out_format = 'csv'
             case 'parquet':
