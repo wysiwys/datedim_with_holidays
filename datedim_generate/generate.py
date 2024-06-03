@@ -274,12 +274,6 @@ class Arguments:
         return Ok(self)
 
 # Helper functions for generating date metadata
-def format_date(date_range: polars.Series, s: str) -> polars.Series:
-    """
-    Takes an arbitrary strftime format string, 
-    and formats all of the elements of the provided series using it.
-    """
-    return date_range.map_elements(lambda x: x.strftime(s),return_dtype=str)
 
 def last_day_of_month(d):
     """
@@ -355,37 +349,25 @@ class DateDimensionGenerator:
         # TODO: make use of native polars api for strptime
         df = polars.DataFrame(
                 {
-                    "datekey": date_range.map_elements(
-                        lambda x: int(x.strftime("%Y%m%d")),
-                        return_dtype=UInt32),
+                    "datekey": date_range.dt.strftime("%Y%m%d").str.to_integer().cast(UInt32),
                     "date_raw": date_range,
-                    "dayofweek": format_date(date_range,"%A"),
-                    "dayofweek_short": format_date(date_range,"%a"),
-                    "month": format_date(date_range,"%B"),
+                    "dayofweek": date_range.dt.strftime("%A"),
+                    "dayofweek_short": date_range.dt.strftime("%a"),
+                    "month": date_range.dt.strftime("%B"),
                     "year": date_range.dt.year(),
-                    "yearmonthnum": date_range.map_elements(
-                        lambda x: int(x.strftime("%Y%m")),
-                        return_dtype=Int64).cast(UInt32),
-                    "monthyear": format_date(date_range,"%b%Y"),
+                    "yearmonthnum": date_range.dt.strftime("%Y%m").str.to_integer().cast(UInt32),
+                    "monthyear": date_range.dt.strftime("%b%Y"),
                     "daynuminweek": date_range.dt.weekday().cast(UInt8),
                     "daynuminmonth": date_range.dt.day().cast(UInt8),
-                    "daynuminyear": date_range.map_elements(
-                        lambda x: x.timetuple().tm_yday,
-                        return_dtype=Int64).cast(UInt16),
+                    "daynuminyear": date_range.dt.ordinal_day(),
                     "monthnuminyear": date_range.dt.month().cast(UInt8),
-                    "iso_year": date_range.map_elements(
-                        lambda x: x.isocalendar().year,
-                        return_dtype=Int64).cast(UInt16),
-                    "iso_weeknuminyear": date_range.map_elements(
-                        lambda x: x.isocalendar().week,
-                        return_dtype=Int64).cast(UInt16),
+                    "iso_year": date_range.dt.iso_year(),
+                    "iso_weeknuminyear": date_range.dt.week(),
 
                     # Boolean values below
 
                     "is_last_day_in_week": date_range.dt.weekday() == 7,
-                    "is_last_day_in_month": date_range.map_elements(
-                        lambda x: x.day == last_day_of_month(x),
-                        return_dtype=bool),
+                    "is_last_day_in_month": date_range.dt.date() == date_range.dt.month_end(),
                     #   gen
                     "is_holiday": date_range.map_elements(
                         self.args.holidays.is_holiday,

@@ -106,6 +106,9 @@ def test_range_without_holidays():
     assert not df.df['is_holiday_JP'].any()
 
 def test_individual_fields():
+    """
+    Test the format and content of individual fields
+    """
     arguments = Arguments()
 
     assert is_ok(arguments._Arguments__process_arguments(
@@ -132,8 +135,8 @@ def test_individual_fields():
     assert df.df['is_last_day_in_month'].to_list()[0:2] == [False,False]
     assert df.df['is_holiday'].to_list()[0:2] == [False,False]
     assert df.df['is_weekday'].to_list()[0:2] == [True,True]
-    
-    
+
+
     # Check that the last day in January is correctly marked as the last day in month
     last_day_in_jan = df.df.filter(polars.col('datekey') == 19920131)
     assert last_day_in_jan['is_last_day_in_month'][0]
@@ -141,6 +144,9 @@ def test_individual_fields():
 
 
 def test_holidays_correctness():
+    """
+    Test that generated holidays are placed correctly
+    """
 
     arguments = Arguments()
 
