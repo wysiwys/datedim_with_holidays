@@ -335,7 +335,6 @@ class DateDimensionGenerator:
                 ).alias("date")
 
         # Create the dataframe without the holiday names columns
-        # TODO: make use of native polars api for strptime
         df = polars.DataFrame(
                 {
                     "datekey": date_range.dt.strftime("%Y%m%d").str.to_integer().cast(UInt32),
