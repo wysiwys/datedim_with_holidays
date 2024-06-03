@@ -55,7 +55,7 @@ The following columns will always be generated:
 | monthyear | text | The three-letter abbreviation of the month, plus the year, e.g. `Aug2024` |
 | daynuminweek | int | The number of the day of week, where 1=Monday and 7=Sunday |
 | daynuminmonth | int | The day number in the month (for February 2, 1995 this would be `2`) |
-| daynuminyear | int | The day number in the year (for December 31, 2022 this would be `365` |
+| daynuminyear | int | The day number in the year, from 1-366 (depending on leap year; for December 31, 2022 the value would be `365`) |
 | monthnuminyear | int | The month number in the year |
 | iso_year | int | The year of the date in the ISO week numbering (may differ from `year`) |
 | iso_weeknuminyear | int | The week number in the ISO week numbering |
