@@ -37,3 +37,36 @@ Internally, the python script makes use of the `polars` package.
 
 The schema of the date dimension table is based loosely on the DATE dimension in https://www.cs.umb.edu/~poneil/StarSchemaB.PDF, which is a standard date dimension table.
 
+## Schema
+
+The following columns will always be generated:
+
+| Column | Type | Description |
+|--------|--------|--------|
+| datekey | int | `YYYYMMDD` representation of date |
+| date_raw | date | The raw date |
+| dayofweek | text | The full name of the day of the week (e.g. `Monday`) |
+| dayofweek_short | text | The three-letter abbreviation of the day of the week (e.g. `Mon`) |
+| month | text | The full name of the month (e.g. `August`) |
+| year | int | The year, e.g. `2021` |
+| yearmonthnum | int |  `YYYYMM` representation of the date, e.g. `202406` |
+| monthyear | text | The three-letter abbreviation of the month, plus the year, e.g. `Aug2024` |
+| daynuminweek | int | The number of the day of week, where 1=Monday and 7=Sunday |
+| daynuminmonth | int | The day number in the month (for February 2, 1995 this would be `2`) |
+| daynuminyear | int | The day number in the year (for December 31, 2022 this would be `365` |
+| monthnuminyear | int | The month number in the year |
+| iso_year | int | The year of the date in the ISO week numbering (may differ from `year`) |
+| iso_weeknuminyear | int | The week number in the ISO week numbering |
+| is_last_day_in_week | boolean | Indicates that this date is the last in the week |
+| is_last_day_in_month | boolean | Indicates that this date is the last in the month |
+| is_holiday | boolean | Indicates that this date is a holiday in at least one of the provided calendars |
+| is_weekday | boolean | Indicates that this date is a weekday |
+
+Additionally, the following columns will be generated for each country, if the `--holiday_names_columns` argument is provided:
+
+| Column | Type | Description |
+|--------|--------|--------|
+| is_holiday_\<COUNTRY\> | boolean | Indicates that this date is a holiday in the \<COUNTRY\> calendar. |
+| holiday_name_\<COUNTRY> | text | The name of the holiday in the \<COUNTRY\> calendar, if available. |
+
+This also applies for financial holidays (e.g. ECB).
