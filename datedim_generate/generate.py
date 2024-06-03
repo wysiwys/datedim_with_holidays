@@ -315,7 +315,9 @@ class DateDimensionGenerator:
         # Create the dataframe without the holiday names columns
         df = polars.DataFrame(
                 {
-                    "datekey": format_date(date_range,"%Y%m%d"),
+                    "datekey": date_range.map_elements(
+                        lambda x: int(x.strftime("%Y%m%d")),
+                        return_dtype=UInt32),
                     "date_raw": date_range,
                     "dayofweek": format_date(date_range,"%A"),
                     "dayofweek_short": format_date(date_range,"%a"),
