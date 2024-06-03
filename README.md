@@ -25,6 +25,8 @@ Alternatively, to generate the same date dimension table, but with separate colu
 ```
 datedim_generate -s 2022-01-01 -e 2022-12-31 -c US BR -o csv --holiday_names_columns
 ```
+
+The generated file can then be uploaded into Snowflake via the drag-and-drop interface, or imported into another database of your choice.
  
 For more information about usage, run:
 ```
