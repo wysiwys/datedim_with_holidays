@@ -9,3 +9,4 @@ datedim_generate/__pycache__
 *.egg-info
 build
 poetry.lock
+dist
